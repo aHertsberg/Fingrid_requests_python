@@ -28,10 +28,10 @@ payload = {'start_time':'{}:00+0300'.format(datetime.strftime(start, '%Y-%m-%dT%
 plt.figure('production', dpi=100, figsize=(16,8))
 
 for prod_type in production_types:
-    if 'Total power production' in prod_type:
-        ax = plt.subplot(212)
-    else:
+    if 'Total power' in prod_type:
         ax = plt.subplot(211)
+    else:
+        ax = plt.subplot(212)
     values = []
     timestamps = []
     r = requests.get(url.format(production[prod_type]), headers=headers, params=payload)
@@ -41,15 +41,16 @@ for prod_type in production_types:
 
     ax.plot(timestamps, values, label=prod_type)
 
-
 ax = plt.subplot(211)
-ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.20), ncol=4, fancybox=True)
 ax.grid(b=True)
-ax.fmt_xdata = mdates.DateFormatter('%H:%M')
+plt.title('Total power consumption and production in Finland')
 
 ax = plt.subplot(212)
+bottom, top = ax.get_ylim()
+ax.set_ylim(bottom, top+500)
+ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.10), ncol=4, fancybox=True)
 ax.grid(b=True)
-plt.title('Total power production in Finland')
+ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 plt.savefig('Production.png')
 
 
