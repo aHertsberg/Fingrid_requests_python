@@ -25,13 +25,13 @@ start = end - timedelta(days=1)
 # assumes UTC+3
 payload = {'start_time':'{}:00+0300'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0300'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
 
-plt.figure('production', dpi=100, figsize=(16,8))
+fig = plt.figure('production', dpi=100, figsize=(16,16))
 
 for prod_type in production_types:
     if 'Total power' in prod_type:
-        ax = plt.subplot(211)
+        ax = plt.subplot(311)
     else:
-        ax = plt.subplot(212)
+        ax = plt.subplot(312)
     values = []
     timestamps = []
     r = requests.get(url.format(production[prod_type]), headers=headers, params=payload)
@@ -39,24 +39,27 @@ for prod_type in production_types:
         values.append(float(e['value']))
         timestamps.append(datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000'))
 
+
+    if 'Total power' in prod_type:
+        prod_type = prod_type.split()[2]
+        prod_type.capitalize()
     ax.plot(timestamps, values, label=prod_type)
 
-ax = plt.subplot(211)
+ax = plt.subplot(311)
 ax.grid(b=True)
 plt.title('Total power consumption and production in Finland')
+plt.legend(loc='upper center', bbox_to_anchor=(.2, 1.00), ncol=2, fancybox=True)
 
-ax = plt.subplot(212)
+ax = plt.subplot(312)
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
-ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.10), ncol=4, fancybox=True)
+ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.20), ncol=4, fancybox=True)
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
-plt.savefig('Production.png')
 
 
-plt.figure('transfer', dpi=100, figsize=(16,8))
 for bidding_area in bidding_areas:
-    ax = plt.subplot(111)
+    ax = plt.subplot(313)
     values = []
     timestamps = []
     r = requests.get(url.format(transfer[bidding_area]), headers=headers, params=payload)
@@ -66,8 +69,14 @@ for bidding_area in bidding_areas:
 
     ax.plot(timestamps, values, label=bidding_area)
 
-ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.05), ncol=3, fancybox=True)
+ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 plt.title('Transfer from Finland')
-plt.savefig('Transfer.png')
+fig.subplots_adjust(hspace=.5)
+plt.savefig('Production.png')
+
+
+
+
+
