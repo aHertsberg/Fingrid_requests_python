@@ -2,10 +2,12 @@ import json
 from datetime import datetime, timedelta
 import requests
 import matplotlib
+import numpy as np
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import cfg
+import sys
 
 
 API_key = cfg.API_key
@@ -75,6 +77,36 @@ ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 plt.title('Transfer from Finland')
 fig.subplots_adjust(hspace=.5)
 plt.savefig('Production.png')
+
+if sys.argv[1] == 'inertia':
+    inertia = cfg.inertia
+    inertial_params = list(inertia.keys())
+    plt.figure('inertia', dpi=100, figsize=(16,8))
+    for param in inertial_params:
+        values = []
+        timestamps = []
+        r = requests.get(url.format(inertia[param]), headers=headers, params=payload)
+
+        for e in r.json():
+            values.append(float(e['value']))
+            timestamps.append(datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000'))
+        if param == 'Grid inertia':
+            values = np.array(values)
+            # conversion from GWs to MWh
+            values = values/3.6
+            param += ' [MWh]'
+        else:
+            param += ' [Hz]'
+        plt.plot(timestamps, values, label=param)
+
+    plt.legend(fancybox=True)
+    plt.grid(b=True)
+    plt.fmt_xdata = mdates.DateFormatter('%H:%M')
+    plt.title('Inertial information of the Nordic grid')
+    plt.savefig('Inertia.png')
+
+
+
 
 
 
