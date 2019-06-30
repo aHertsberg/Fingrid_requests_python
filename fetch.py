@@ -78,7 +78,7 @@ plt.title('Transfer from Finland')
 fig.subplots_adjust(hspace=.5)
 plt.savefig('Production.png')
 
-if sys.argv[1] == 'inertia':
+if len(sys.argv) > 1 and sys.argv[1] == 'inertia':
     inertia = cfg.inertia
     inertial_params = list(inertia.keys())
     plt.figure('inertia', dpi=100, figsize=(16,8))
