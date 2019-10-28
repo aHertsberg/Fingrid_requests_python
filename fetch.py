@@ -30,7 +30,7 @@ url = 'https://api.fingrid.fi/v1/variable/{}/events/json'
 headers = {'x-api-key':API_key, 'Accept':'application/json'}
 
 if args.end:
-    end = datetime.strptime(args.end, '%Y-%m-%dT%H:%M')
+    end = datetime.strptime(args.end, '%Y-%m-%d')
 else:
     end = datetime.now()
 
@@ -43,12 +43,16 @@ else:
 payload = {'start_time':'{}:00+0300'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0300'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
 
 fig = plt.figure('production', dpi=100, figsize=(16,16))
+prod_dict = {}
 
+total_power = 0
+ax_1 = plt.subplot(311)
+ax_2 = plt.subplot(312)
 for prod_type in production_types:
     if 'Total power' in prod_type:
-        ax = plt.subplot(311)
+        ax = ax_1
     else:
-        ax = plt.subplot(312)
+        ax = ax_2
     values = []
     timestamps = []
     r = requests.get(url.format(production[prod_type]), headers=headers, params=payload)
@@ -60,14 +64,30 @@ for prod_type in production_types:
     if 'Total power' in prod_type:
         prod_type = prod_type.split()[2]
         prod_type.capitalize()
+    else:
+        #Apparently Fingrid's start and end times are the same if queried with native resolution
+        resolution = timedelta(minutes=3)
+        # GWh for readability
+        E = round(sum(values)*resolution.seconds/3600/1000, 2)
+        prod_dict[prod_type] = E
+        total_power += E
+
     ax.plot(timestamps, values, label=prod_type)
 
-ax = plt.subplot(311)
+print('Absolute production GWh:')
+print(prod_dict)
+ratio_dict = {}
+for key in prod_dict.keys():
+    ratio_dict[key] = round(prod_dict[key]/total_power*100, 1)
+print('Percentage of total power produced in Finland')
+print(ratio_dict)
+
+ax = ax_1
 ax.grid(b=True)
 plt.title('Total power consumption and production in Finland')
 plt.legend(loc='upper center', bbox_to_anchor=(.2, 1.00), ncol=2, fancybox=True)
 
-ax = plt.subplot(312)
+ax = ax_2
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
 ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.20), ncol=4, fancybox=True)
@@ -75,8 +95,9 @@ ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
 
+ax_3 = plt.subplot(313)
 for bidding_area in bidding_areas:
-    ax = plt.subplot(313)
+    ax = ax_3
     values = []
     timestamps = []
     r = requests.get(url.format(transfer[bidding_area]), headers=headers, params=payload)
