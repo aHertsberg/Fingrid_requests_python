@@ -8,7 +8,14 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import cfg
 import sys
+import argparse
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-i", "--inertia", help="Boolean for inertia plot")
+parser.add_argument("-end", "--end", help="End date, default now")
+
+args = parser.parse_args()
 
 API_key = cfg.API_key
 production = cfg.production
@@ -21,7 +28,11 @@ bidding_areas.sort()
 url = 'https://api.fingrid.fi/v1/variable/{}/events/json'
 headers = {'x-api-key':API_key, 'Accept':'application/json'}
 
-end = datetime.now()
+if args.end:
+    end = datetime.strptime(args.end, '%Y-%m-%dT%H:%M')
+else:
+    end = datetime.now()
+
 start = end - timedelta(days=1)
 
 # assumes UTC+3
@@ -78,7 +89,7 @@ plt.title('Transfer from Finland')
 fig.subplots_adjust(hspace=.5)
 plt.savefig('Production.png')
 
-if len(sys.argv) > 1 and sys.argv[1] == 'inertia':
+if args.inertia:
     inertia = cfg.inertia
     inertial_params = list(inertia.keys())
     plt.figure('inertia', dpi=100, figsize=(16,8))
