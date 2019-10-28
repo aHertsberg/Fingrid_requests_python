@@ -91,7 +91,7 @@ ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 plt.title('Transfer from Finland')
 fig.subplots_adjust(hspace=.5)
-plt.savefig('Production.png')
+plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 
 if args.inertia:
     inertia = cfg.inertia
@@ -118,7 +118,7 @@ if args.inertia:
     plt.grid(b=True)
     plt.fmt_xdata = mdates.DateFormatter('%H:%M')
     plt.title('Inertial information of the Nordic grid')
-    plt.savefig('Inertia.png')
+    plt.savefig('Inertia_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 
 
 
