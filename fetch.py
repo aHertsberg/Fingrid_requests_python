@@ -33,7 +33,7 @@ if args.end:
 else:
     end = datetime.now()
 
-start = end - timedelta(days=1)
+start = end - timedelta(days=3)
 
 # assumes UTC+3
 payload = {'start_time':'{}:00+0300'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0300'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
