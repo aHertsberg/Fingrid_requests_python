@@ -13,7 +13,7 @@ import argparse
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-i", "--inertia", help="Boolean for inertia plot")
-parser.add_argument("-end", "--end", help="End date, default now")
+parser.add_argument("-e", "--end", help="End date, default now")
 parser.add_argument("-d", "--days", help="Set duration in days")
 
 args = parser.parse_args()
@@ -102,7 +102,7 @@ for bidding_area in bidding_areas:
     timestamps = []
     r = requests.get(url.format(transfer[bidding_area]), headers=headers, params=payload)
     for e in r.json():
-        values.append(float(e['value']))
+        values.append(float(e['value'])*-1)
         timestamps.append(datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000'))
 
     ax.plot(timestamps, values, label=bidding_area)
@@ -110,7 +110,7 @@ for bidding_area in bidding_areas:
 ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
-plt.title('Transfer from Finland')
+plt.title('Transfer to Finland')
 fig.subplots_adjust(hspace=.5)
 plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 

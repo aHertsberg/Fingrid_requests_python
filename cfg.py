@@ -2,7 +2,7 @@
 global API_key
 API_key = ''
 
-production = {'Total power production in Finland':'192', 'Condensing':'189', \
+production = {'Total power production in Finland':'192', \
         'Combined heat and power':'201', 'Nuclear': '188', 'Wind':'181', \
         'Hydro':'191', 'Other':'205', 'Industrial CHP':'202', \
         'Total power consumption in Finland':'193'}
