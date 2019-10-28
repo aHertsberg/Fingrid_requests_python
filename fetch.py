@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("-i", "--inertia", help="Boolean for inertia plot")
 parser.add_argument("-end", "--end", help="End date, default now")
+parser.add_argument("-d", "--days", help="Set duration in days")
 
 args = parser.parse_args()
 
@@ -33,7 +34,10 @@ if args.end:
 else:
     end = datetime.now()
 
-start = end - timedelta(days=3)
+if args.days:
+    start = end - timedelta(days=int(args.days))
+else:
+    start = end - timedelta(days=3)
 
 # assumes UTC+3
 payload = {'start_time':'{}:00+0300'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0300'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
