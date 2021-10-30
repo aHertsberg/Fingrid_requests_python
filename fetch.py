@@ -39,8 +39,7 @@ if args.days:
 else:
     start = end - timedelta(days=3)
 
-# assumes UTC+3
-payload = {'start_time':'{}:00+0300'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0300'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
+payload = {'start_time':'{}:00+0000'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0000'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
 
 fig = plt.figure('production', dpi=100, figsize=(16,16))
 prod_dict = {}
@@ -96,11 +95,13 @@ print(ratio_dict)
 ax = ax_1
 ax.set_facecolor('xkcd:powder blue')
 ax.set_title('Total power consumption and production in Finland')
+ax.set_xlim((start, end))
 ax.legend(loc='upper center', bbox_to_anchor=(.15, 1.12), ncol=2, fancybox=True)
 ax.grid(b=True)
 
 ax = ax_2
 ax.set_facecolor('xkcd:powder blue')
+ax.set_xlim((start, end))
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
 ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.15), ncol=3, fancybox=True)
@@ -120,11 +121,12 @@ for bidding_area in bidding_areas:
 
     ax.plot(timestamps, values, label=bidding_area)
 
-ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
 ax.set_facecolor('xkcd:powder blue')
+plt.title('Transfer to Finland')
+ax.set_xlim((start, end))
+ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
-plt.title('Transfer to Finland')
 fig.subplots_adjust(hspace=.5)
 plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 
