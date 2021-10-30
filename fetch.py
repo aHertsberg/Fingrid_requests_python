@@ -83,14 +83,14 @@ print('Percentage of total power produced in Finland')
 print(ratio_dict)
 
 ax = ax_1
+ax.set_title('Total power consumption and production in Finland')
+ax.legend(loc='upper center', bbox_to_anchor=(.15, 1.12), ncol=2, fancybox=True)
 ax.grid(b=True)
-plt.title('Total power consumption and production in Finland')
-plt.legend(loc='upper center', bbox_to_anchor=(.2, 1.00), ncol=2, fancybox=True)
 
 ax = ax_2
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
-ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.20), ncol=4, fancybox=True)
+ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.15), ncol=3, fancybox=True)
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
