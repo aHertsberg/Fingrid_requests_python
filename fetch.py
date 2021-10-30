@@ -64,6 +64,17 @@ for prod_type in production_types:
     if 'Total power' in prod_type:
         prod_type = prod_type.split()[2]
         prod_type.capitalize()
+    elif prod_type == 'Solar, forecasted':
+        # Unfortunately solar is only forecasted at 1 h granularity, so for now 
+        # it will be to be treated separately.
+        resolution = timedelta(minutes=60)
+        E = round(sum(values)*resolution.seconds/3600/1000, 2)
+        prod_dict[prod_type] = E
+        total_power += E
+        # preferential treatment, but I can't resist. Perhaps hydro should get 
+        # be assigned the colour blue :thinking:
+        ax.plot(timestamps, values, label=prod_type, c='xkcd:goldenrod')
+        continue
     else:
         #Apparently Fingrid's start and end times are the same if queried with native resolution
         resolution = timedelta(minutes=3)
@@ -83,11 +94,13 @@ print('Percentage of total power produced in Finland')
 print(ratio_dict)
 
 ax = ax_1
+ax.set_facecolor('xkcd:powder blue')
 ax.set_title('Total power consumption and production in Finland')
 ax.legend(loc='upper center', bbox_to_anchor=(.15, 1.12), ncol=2, fancybox=True)
 ax.grid(b=True)
 
 ax = ax_2
+ax.set_facecolor('xkcd:powder blue')
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
 ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.15), ncol=3, fancybox=True)
@@ -108,6 +121,7 @@ for bidding_area in bidding_areas:
     ax.plot(timestamps, values, label=bidding_area)
 
 ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
+ax.set_facecolor('xkcd:powder blue')
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 plt.title('Transfer to Finland')
