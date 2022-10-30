@@ -29,10 +29,11 @@ bidding_areas.sort()
 url = 'https://api.fingrid.fi/v1/variable/{}/events/json'
 headers = {'x-api-key':API_key, 'Accept':'application/json'}
 
+t_now = datetime.utcnow()
 if args.end:
     end = datetime.strptime(args.end, '%Y-%m-%d')
 else:
-    end = datetime.now()
+    end = t_now
 
 if args.days:
     start = end - timedelta(days=int(args.days))
@@ -56,9 +57,10 @@ for prod_type in production_types:
     timestamps = []
     r = requests.get(url.format(production[prod_type]), headers=headers, params=payload)
     for e in r.json():
-        values.append(float(e['value']))
-        timestamps.append(datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000'))
-
+        timestamp = datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000')
+        if timestamp < t_now:
+            values.append(float(e['value']))
+            timestamps.append(timestamp)
 
     if 'Total power' in prod_type:
         prod_type = prod_type.split()[2]
@@ -68,21 +70,26 @@ for prod_type in production_types:
         # it will be to be treated separately.
         resolution = timedelta(minutes=60)
         E = round(sum(values)*resolution.seconds/3600/1000, 2)
+        # Removing extrapolated future production
+        if timestamps[-1] > t_now - resolution:
+            E -= values[-1]*(1 - (t_now-timestamps[-1])/resolution)
         prod_dict[prod_type] = E
         total_power += E
         # preferential treatment, but I can't resist. Perhaps hydro should get 
         # be assigned the colour blue :thinking:
-        ax.plot(timestamps, values, label=prod_type, c='xkcd:goldenrod')
+        ax.step(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
         continue
     else:
-        #Apparently Fingrid's start and end times are the same if queried with native resolution
+        # Apparently Fingrid's start and end times are the same if queried with 
+        # native resolution.
         resolution = timedelta(minutes=3)
         # GWh for readability
         E = round(sum(values)*resolution.seconds/3600/1000, 2)
         prod_dict[prod_type] = E
         total_power += E
 
-    ax.plot(timestamps, values, label=prod_type)
+    if prod_type != 'Solar, forecasted':
+        ax.plot(timestamps, values, label=prod_type)
 
 print('Absolute production GWh:')
 print(prod_dict)
