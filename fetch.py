@@ -95,13 +95,13 @@ print(ratio_dict)
 ax = ax_1
 ax.set_facecolor('xkcd:powder blue')
 ax.set_title('Total power consumption and production in Finland')
-ax.set_xlim((start, end))
+ax.set_xlim((start, min(end, datetime.utcnow())))
 ax.legend(loc='upper center', bbox_to_anchor=(.15, 1.12), ncol=2, fancybox=True)
 ax.grid(b=True)
 
 ax = ax_2
 ax.set_facecolor('xkcd:powder blue')
-ax.set_xlim((start, end))
+ax.set_xlim((start, min(end, datetime.utcnow())))
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
 ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.15), ncol=3, fancybox=True)
@@ -123,7 +123,7 @@ for bidding_area in bidding_areas:
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Transfer to Finland')
-ax.set_xlim((start, end))
+ax.set_xlim((start, min(end, datetime.utcnow())))
 ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
 ax.grid(b=True)
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
