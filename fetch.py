@@ -1,5 +1,8 @@
+import time
+import pdb
 import json
 from datetime import datetime, timedelta
+import urllib.request, json
 import requests
 import matplotlib
 import numpy as np
@@ -26,8 +29,7 @@ transfer = cfg.transfer
 bidding_areas = list(transfer.keys())
 bidding_areas.sort()
 
-url = 'https://api.fingrid.fi/v1/variable/{}/events/json'
-headers = {'x-api-key':API_key, 'Accept':'application/json'}
+headers = {'x-api-key':API_key}
 
 t_now = datetime.utcnow()
 if args.end:
@@ -40,7 +42,9 @@ if args.days:
 else:
     start = end - timedelta(days=3)
 
-payload = {'start_time':'{}:00+0000'.format(datetime.strftime(start, '%Y-%m-%dT%H:%M')), 'end_time':'{}:00+0000'.format(datetime.strftime(end, '%Y-%m-%dT%H:%M'))}
+start_string = datetime.strftime(start, '%Y-%m-%dT%H:%M')
+end_string = datetime.strftime(end, '%Y-%m-%dT%H:%M')
+base_url = 'https://data.fingrid.fi/api/datasets/{}/data?startTime={}&endTime={}&pageSize=20000'
 
 fig = plt.figure('production', dpi=100, figsize=(16,16))
 prod_dict = {}
@@ -49,15 +53,28 @@ total_power = 0
 ax_1 = plt.subplot(311)
 ax_2 = plt.subplot(312)
 for prod_type in production_types:
+    print(prod_type)
     if 'Total power' in prod_type:
         ax = ax_1
     else:
         ax = ax_2
     values = []
     timestamps = []
-    r = requests.get(url.format(production[prod_type]), headers=headers, params=payload)
-    for e in r.json():
-        timestamp = datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000')
+    request_url = base_url.format(production[prod_type], start_string, end_string)
+    req = urllib.request.Request(request_url, headers=headers)
+
+    req.get_method = lambda: 'GET'
+    response = urllib.request.urlopen(req)
+    response_code = response.getcode()
+    if response_code != 200:
+        print(f"Fetching \"{prod_type}\" returned status code {response_code}")
+        time.sleep(2.1)
+        continue
+    response_data = response.read()
+    response_dict = json.loads(response_data.decode('utf-8'))
+
+    for e in response_dict["data"]:
+        timestamp = datetime.strptime(e['startTime'], '%Y-%m-%dT%H:%M:%S.000Z')
         if timestamp < t_now:
             values.append(float(e['value']))
             timestamps.append(timestamp)
@@ -78,6 +95,7 @@ for prod_type in production_types:
         # preferential treatment, but I can't resist. Perhaps hydro should get 
         # be assigned the colour blue :thinking:
         ax.step(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
+        time.sleep(2.1)
         continue
     else:
         # Apparently Fingrid's start and end times are the same if queried with 
@@ -90,6 +108,7 @@ for prod_type in production_types:
 
     if prod_type != 'Solar, forecasted':
         ax.plot(timestamps, values, label=prod_type)
+    time.sleep(2.1)
 
 print('Absolute production GWh:')
 print(prod_dict)
@@ -104,7 +123,7 @@ ax.set_facecolor('xkcd:powder blue')
 ax.set_title('Total power consumption and production in Finland')
 ax.set_xlim((start, min(end, datetime.utcnow())))
 ax.legend(loc='upper center', bbox_to_anchor=(.15, 1.12), ncol=2, fancybox=True)
-ax.grid(b=True)
+ax.grid()
 
 ax = ax_2
 ax.set_facecolor('xkcd:powder blue')
@@ -112,7 +131,7 @@ ax.set_xlim((start, min(end, datetime.utcnow())))
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
 ax.legend(loc='upper center', bbox_to_anchor=(.5, 1.15), ncol=3, fancybox=True)
-ax.grid(b=True)
+ax.grid()
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
 
@@ -121,18 +140,33 @@ for bidding_area in bidding_areas:
     ax = ax_3
     values = []
     timestamps = []
-    r = requests.get(url.format(transfer[bidding_area]), headers=headers, params=payload)
-    for e in r.json():
-        values.append(float(e['value'])*-1)
-        timestamps.append(datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000'))
+
+    request_url = base_url.format(transfer[bidding_area], start_string, end_string)
+    req = urllib.request.Request(request_url, headers=headers)
+
+    req.get_method = lambda: 'GET'
+    response = urllib.request.urlopen(req)
+    response_code = response.getcode()
+    if response_code != 200:
+        print(f"Fetching \"{prod_type}\" returned status code {response_code}")
+        time.sleep(2.1)
+        continue
+    response_data = response.read()
+    response_dict = json.loads(response_data.decode('utf-8'))
+
+    for e in response_dict["data"]:
+        timestamp = datetime.strptime(e['startTime'], '%Y-%m-%dT%H:%M:%S.000Z')
+        values.append(float(e['value']))
+        timestamps.append(timestamp)
 
     ax.plot(timestamps, values, label=bidding_area)
+    time.sleep(2.1)
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Transfer to Finland')
 ax.set_xlim((start, min(end, datetime.utcnow())))
 ax.legend(loc='upper center', bbox_to_anchor=(.2, 1.20), ncol=3, fancybox=True)
-ax.grid(b=True)
+ax.grid()
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 fig.subplots_adjust(hspace=.5)
 plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
