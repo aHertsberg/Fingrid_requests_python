@@ -100,6 +100,9 @@ for prod_type in production_types:
     if 'Total power' in prod_type:
         prod_type = prod_type.split()[2]
         prod_type.capitalize()
+        if 'production' in prod_type:
+            resolution = timedelta(minutes=3)
+            total_power = round(sum(values)*resolution.seconds/3600/1000, 2)
     elif prod_type == 'Solar, forecasted':
         # Unfortunately solar is only forecasted at 1 h granularity, so for now 
         # it will be to be treated separately.
@@ -109,10 +112,9 @@ for prod_type in production_types:
         if timestamps[-1] > t_now - resolution:
             E -= values[-1]*(1 - (t_now-timestamps[-1])/resolution)
         prod_dict[prod_type] = E
-        total_power += E
         # preferential treatment, but I can't resist. Perhaps hydro should get 
         # be assigned the colour blue :thinking:
-        ax.plot(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
+        ax.step(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
         time.sleep(2.1)
         continue
     else:
@@ -122,10 +124,9 @@ for prod_type in production_types:
         # GWh for readability
         E = round(sum(values)*resolution.seconds/3600/1000, 2)
         prod_dict[prod_type] = E
-        total_power += E
 
     if prod_type != 'Solar, forecasted':
-        ax.plot(timestamps, values, label=prod_type)
+        ax.step(timestamps, values, label=prod_type)
 
 print('Absolute production GWh:')
 print(prod_dict)
@@ -161,7 +162,7 @@ for bidding_area in bidding_areas:
     timestamps = data[area_id][0]
     values = data[area_id][1]
 
-    ax.plot(timestamps, values, label=bidding_area)
+    ax.step(timestamps, values, label=bidding_area)
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Transfer to Finland')
@@ -192,7 +193,7 @@ if args.inertia:
             param += ' [MWh]'
         else:
             param += ' [Hz]'
-        plt.plot(timestamps, values, label=param)
+        plt.step(timestamps, values, label=param)
 
     plt.legend(fancybox=True)
     plt.grid(b=True)
