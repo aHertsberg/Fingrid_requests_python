@@ -1,17 +1,17 @@
+import argparse
+import cfg
+import sys
 import time
 import pdb
 import json
 from datetime import datetime, timedelta
 import urllib.request, json
-import requests
+
 import matplotlib
-import numpy as np
 matplotlib.use('Agg')
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import cfg
-import sys
-import argparse
 
 parser = argparse.ArgumentParser()
 
@@ -31,6 +31,41 @@ bidding_areas.sort()
 
 headers = {'x-api-key':API_key}
 
+def query_multiple_tags(tag_dict, start, end, page=1, last_page=None):
+    tags = tag_dict.keys()
+    ids = [tag_dict[tag] for tag in tags]
+    data = {}
+    for tag in ids:
+        data[tag] = [[],[]]
+    base_url = 'https://data.fingrid.fi/api/data?datasets={}&startTime={}&endTime={}&pageSize=10000&page={}'
+    request_url = base_url.format(','.join(ids), start, end, page)
+    req = urllib.request.Request(request_url, headers=headers)
+
+    req.get_method = lambda: 'GET'
+    r = urllib.request.urlopen(req)
+    response_code = r.getcode()
+    if response_code != 200:
+        print(f"Fetching \"{base_url}\" returned status code {response_code}")
+        return
+    response = r.read()
+    response = json.loads(response.decode('utf-8'))
+    for row in response["data"]:
+        data[str(row["datasetId"])][0].append(datetime.strptime(row["startTime"], "%Y-%m-%dT%H:%M:%S.000Z"))
+        data[str(row["datasetId"])][1].append(row["value"])
+
+    if not last_page: last_page = response['pagination']['lastPage']
+
+    if page != last_page:
+        # Avoiding rate limit error 429
+        time.sleep(2.1)
+        to_join = query_multiple_tags(tag_dict, start, end, page=page+1, last_page=last_page)
+        for key in to_join.keys():
+            # Assumes that all tags are retreived on the first page and thus exist in the dict
+            data[key][0] = data[key][0] + to_join[key][0]
+            data[key][1] = data[key][1] + to_join[key][1]
+
+    return data
+
 t_now = datetime.utcnow()
 if args.end:
     end = datetime.strptime(args.end, '%Y-%m-%d')
@@ -44,40 +79,23 @@ else:
 
 start_string = datetime.strftime(start, '%Y-%m-%dT%H:%M')
 end_string = datetime.strftime(end, '%Y-%m-%dT%H:%M')
-base_url = 'https://data.fingrid.fi/api/datasets/{}/data?startTime={}&endTime={}&pageSize=20000'
+
+data = query_multiple_tags(production, start_string, end_string)
 
 fig = plt.figure('production', dpi=100, figsize=(16,16))
 prod_dict = {}
-
 total_power = 0
 ax_1 = plt.subplot(311)
 ax_2 = plt.subplot(312)
+
 for prod_type in production_types:
-    print(prod_type)
+    prod_id = production[prod_type]
     if 'Total power' in prod_type:
         ax = ax_1
     else:
         ax = ax_2
-    values = []
-    timestamps = []
-    request_url = base_url.format(production[prod_type], start_string, end_string)
-    req = urllib.request.Request(request_url, headers=headers)
-
-    req.get_method = lambda: 'GET'
-    response = urllib.request.urlopen(req)
-    response_code = response.getcode()
-    if response_code != 200:
-        print(f"Fetching \"{prod_type}\" returned status code {response_code}")
-        time.sleep(2.1)
-        continue
-    response_data = response.read()
-    response_dict = json.loads(response_data.decode('utf-8'))
-
-    for e in response_dict["data"]:
-        timestamp = datetime.strptime(e['startTime'], '%Y-%m-%dT%H:%M:%S.000Z')
-        if timestamp < t_now:
-            values.append(float(e['value']))
-            timestamps.append(timestamp)
+    timestamps = data[prod_id][0]
+    values = data[prod_id][1]
 
     if 'Total power' in prod_type:
         prod_type = prod_type.split()[2]
@@ -94,7 +112,7 @@ for prod_type in production_types:
         total_power += E
         # preferential treatment, but I can't resist. Perhaps hydro should get 
         # be assigned the colour blue :thinking:
-        ax.step(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
+        ax.plot(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
         time.sleep(2.1)
         continue
     else:
@@ -108,7 +126,6 @@ for prod_type in production_types:
 
     if prod_type != 'Solar, forecasted':
         ax.plot(timestamps, values, label=prod_type)
-    time.sleep(2.1)
 
 print('Absolute production GWh:')
 print(prod_dict)
@@ -136,31 +153,15 @@ ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
 
 ax_3 = plt.subplot(313)
+time.sleep(2) # Might otherwise hit the rate limit from the previous queries
+data = query_multiple_tags(transfer, start_string, end_string)
 for bidding_area in bidding_areas:
+    area_id = transfer[bidding_area]
     ax = ax_3
-    values = []
-    timestamps = []
-
-    request_url = base_url.format(transfer[bidding_area], start_string, end_string)
-    req = urllib.request.Request(request_url, headers=headers)
-
-    req.get_method = lambda: 'GET'
-    response = urllib.request.urlopen(req)
-    response_code = response.getcode()
-    if response_code != 200:
-        print(f"Fetching \"{prod_type}\" returned status code {response_code}")
-        time.sleep(2.1)
-        continue
-    response_data = response.read()
-    response_dict = json.loads(response_data.decode('utf-8'))
-
-    for e in response_dict["data"]:
-        timestamp = datetime.strptime(e['startTime'], '%Y-%m-%dT%H:%M:%S.000Z')
-        values.append(float(e['value']))
-        timestamps.append(timestamp)
+    timestamps = data[area_id][0]
+    values = data[area_id][1]
 
     ax.plot(timestamps, values, label=bidding_area)
-    time.sleep(2.1)
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Transfer to Finland')
@@ -178,6 +179,7 @@ if args.inertia:
     for param in inertial_params:
         values = []
         timestamps = []
+        # todo switch to urllib
         r = requests.get(url.format(inertia[param]), headers=headers, params=payload)
 
         for e in r.json():
