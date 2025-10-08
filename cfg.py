@@ -11,3 +11,7 @@ transfer = {'AX-SE3':'90', 'EE':'180', 'NO':'187', 'RUS':'195', \
         'SE1':'87', 'SE3':'89'}
 
 inertia = {'Grid inertia':'260', 'Grid frequency':'177'}
+
+curiosity = {'Electricity storage: discharging':'398', \
+             'Electricity storage: charging':'399', \
+             'Electric district heating boilers': '371'}
