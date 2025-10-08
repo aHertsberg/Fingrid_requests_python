@@ -1,8 +1,6 @@
 import argparse
 import cfg
-import sys
 import time
-import pdb
 import json
 from datetime import datetime, timedelta
 import urllib.request
@@ -115,7 +113,6 @@ for prod_type in production_types:
         # preferential treatment, but I can't resist. Perhaps hydro should get 
         # be assigned the colour blue :thinking:
         ax.step(timestamps, values, where='post', label=prod_type, c='xkcd:goldenrod')
-        time.sleep(2.1)
         continue
     else:
         # Apparently Fingrid's start and end times are the same if queried with 
