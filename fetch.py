@@ -5,7 +5,7 @@ import time
 import pdb
 import json
 from datetime import datetime, timedelta
-import urllib.request, json
+import urllib.request
 
 import matplotlib
 matplotlib.use('Agg')
