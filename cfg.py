@@ -1,6 +1,5 @@
-# insert API key here
-global API_key
-API_key = ''
+import os
+API_key = os.environ["FINGRID_API_KEY"]
 
 production = {'Total power production in Finland':'192', \
         'Combined heat and power':'201', 'Nuclear': '188', 'Wind':'181', \
