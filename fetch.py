@@ -8,16 +8,17 @@ import math
 
 import matplotlib
 matplotlib.use('Agg')
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import numpy as np
+import pandas as pd
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-i", "--inertia", action="store_true", help="Boolean for inertia plot")
 parser.add_argument("-e", "--end", help="End date, default now")
-parser.add_argument("-d", "--days", help="Set duration in days")
-parser.add_argument("-p", "--prices", action="store_true", help="Boolean for including price chart, can make queries slow (1 day with 15 minute data is ~15 seconds)")
+parser.add_argument("-d", "--days", help="Set duration in days, default 3")
+parser.add_argument("-p", "--prices", action="store_true", help="Boolean for including price chart")
 
 args = parser.parse_args()
 
@@ -67,55 +68,67 @@ def query_multiple_tags(tag_dict, start, end, page=1, last_page=None):
     return data
 
 def collect_prices(t_start, t_end):
-    prices = [[], []]
-    t = t_start
+    price_index = generate_index(t_start, t_end)
+    
+    try:
+        prices = pd.read_csv("price_data.csv", index_col=0, parse_dates=True)
+    except FileNotFoundError:
+        print("No cache found")
+        prices = pd.DataFrame(columns=['Time','Price'])
+        prices = prices.set_index('Time')
+
+    missing_indices = price_index.difference(prices.index.intersection(price_index))
+    total_fetches = len(missing_indices)
+    fetches = 0
+    
+    url = "https://api.porssisahko.net/v2/price.json?date={}"
+    for index in missing_indices:
+        date_string = datetime.strftime(index, "%Y-%m-%dT%H:%M:00.000Z")
+        price = query_price(url.format(date_string))
+        # The prices returned include VAT and are in c/kWh
+        price = price/1.255*10
+        prices.loc[index] = [price,]
+        fetches += 1
+        if fetches%8 == 0: print(f"Prices fetched: {fetches}/{total_fetches}")
+    prices = prices.sort_index()
+    if len(missing_indices) > 0 : prices.to_csv("price_data.csv")
+    # Ugly hack to make the step plot render the last step.
+    # Not as much of a problem with the 3 min data
+    last = prices.index[-1]
+    dt = last - prices.index[-2]
+    prices.loc[last + dt] = prices.loc[last]
+
+    return prices
+
+def generate_index(start, end):
+    index = []
     # Market pricing in Finland changed to 15 min on 2025-10-01T01:00:00 local
     t_15_min_pricing = datetime.strptime("2025-09-30T23:00", "%Y-%m-%dT%H:%M")
     hours = 0
     quarters = 0
+    t = start
     if t < t_15_min_pricing:
         t = t - timedelta(t.minute*60 + t.second)
-        hour_span = min(t_end, t_15_min_pricing) - t
+        hour_span = min(end, t_15_min_pricing) - t
         hours = hour_span.days*24 + math.ceil(hour_span.seconds/3600)
     else:
         t = t - timedelta(t.minute%15*60 + t.second)
-    if t_end > t_15_min_pricing:
-        quarter_span = t_end - max(t, t_15_min_pricing)
+    if end > t_15_min_pricing:
+        quarter_span = end - max(t, t_15_min_pricing)
         quarters = quarter_span.days*24*4 + math.ceil(quarter_span.seconds/900)
-    total_fetches = quarters + hours
-    fetches = 0
-    
+
     dt = timedelta(seconds=3600)
-    url = "https://api.porssisahko.net/v2/price.json?date={}"
     for i in range(hours):
-        date_string = datetime.strftime(t, "%Y-%m-%dT%H:%M:00.000Z")
-        price = query_price(url.format(date_string))
-        prices[0].append(t)
-        prices[1].append(price)
+        index.append(t)
         t = t + dt
-        fetches += 1
-        if fetches%8 == 0: print(f"Prices fetched: {fetches}/{total_fetches}")
+
     if quarters > 0:
         dt = timedelta(seconds=900)
         for i in range(quarters):
-            date_string = datetime.strftime(t, "%Y-%m-%dT%H:%M:00.000Z")
-            price = query_price(url.format(date_string))
-            prices[0].append(t)
-            prices[1].append(price)
-            t = t + dt
-            fetches += 1
-            if fetches%8 == 0: print(f"Prices fetched: {fetches}/{total_fetches}")
-
-    # Ugly hack to make the step plot render the last step.
-    # Not as much of a problem with the 3 min data
-    prices[0].append(prices[0][-1] + dt)
-    prices[1].append(prices[1][-1])
-
-    # The prices returned include VAT and are in c/kWh
-    prices[1] = np.array(prices[1])/1.255
-    prices[1] = prices[1]*10
-
-    return prices
+            index.append(t)
+            t = t+dt
+    return pd.Index(index)
+   
 
 
 def query_price(url):
@@ -288,7 +301,7 @@ for tag in curiosity.keys():
 if args.prices:
     prices = collect_prices(start, end)
     ax_prices = ax_4.twinx()
-    ax_prices.step(prices[0], prices[1], c='k', label='Electricity wholesale price', where="post")
+    ax_prices.step(prices.index, prices['Price'], c='k', label='Electricity wholesale price', where="post")
     ax_prices.set_ylabel("[eur/MWh]")
 
     # Tick alignment
@@ -348,11 +361,5 @@ if args.inertia:
     plt.fmt_xdata = mdates.DateFormatter('%H:%M')
     plt.title('Inertial information of the Nordic grid')
     plt.savefig('Inertia_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
-
-
-
-
-
-
 
 
