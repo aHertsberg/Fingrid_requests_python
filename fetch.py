@@ -4,6 +4,7 @@ import time
 import json
 from datetime import datetime, timedelta
 import urllib.request
+import math
 
 import matplotlib
 matplotlib.use('Agg')
@@ -64,6 +65,64 @@ def query_multiple_tags(tag_dict, start, end, page=1, last_page=None):
 
     return data
 
+def collect_prices(t_start, t_end):
+    prices = [[], []]
+    t = t_start
+    # Market pricing in Finland changed to 15 min on 2025-10-01T01:00:00 local
+    t_15_min_pricing = datetime.strptime("2025-09-30T23:00", "%Y-%m-%dT%H:%M")
+    hours = 0
+    quarters = 0
+    if t < t_15_min_pricing:
+        t = t - timedelta(t.minute*60 + t.second)
+        hour_span = min(t_end, t_15_min_pricing) - t
+        hours = hour_span.days*24 + math.ceil(hour_span.seconds/3600)
+    else:
+        t = t - timedelta(t.minute%15*60 + t.second)
+    if t_end > t_15_min_pricing:
+        quarter_span = t_end - max(t, t_15_min_pricing)
+        quarters = quarter_span.days*24*4 + math.ceil(quarter_span.seconds/900)
+    
+    dt = timedelta(seconds=3600)
+    url = "https://api.porssisahko.net/v2/price.json?date={}"
+    for i in range(hours):
+        date_string = datetime.strftime(t, "%Y-%m-%dT%H:%M:00.000Z")
+        price = query_price(url.format(date_string))
+        prices[0].append(t)
+        prices[1].append(price)
+        t = t + dt
+    if quarters > 0:
+        dt = timedelta(seconds=900)
+        for i in range(quarters):
+            date_string = datetime.strftime(t, "%Y-%m-%dT%H:%M:00.000Z")
+            price = query_price(url.format(date_string))
+            prices[0].append(t)
+            prices[1].append(price)
+            t = t + dt
+
+    # Ugly hack to make the step plot render the last step.
+    # Not as much of a problem with the 3 min data
+    prices[0].append(prices[0][-1] + dt)
+    prices[1].append(prices[1][-1])
+
+    # The prices returned include VAT and are in c/kWh
+    prices[1] = np.array(prices[1])/1.255
+    prices[1] = prices[1]*10
+
+    return prices
+
+def query_price(url):
+    req = urllib.request.Request(url)
+    req.get_method = lambda: 'GET'
+    r = urllib.request.urlopen(req)
+    response_code = r.getcode()
+    if response_code != 200:
+       print(f"Fetching \"{url}\" returned status code {response_code}") 
+       return
+    response = r.read()
+    response = json.loads(response.decode('utf-8'))
+    return response["price"]
+
+
 t_now = datetime.utcnow()
 if args.end:
     end = datetime.strptime(args.end, '%Y-%m-%d')
@@ -123,7 +182,7 @@ for prod_type in production_types:
         prod_dict[prod_type] = E
 
     if prod_type != 'Solar, forecasted':
-        ax.step(timestamps, values, label=prod_type)
+        ax.step(timestamps, values, label=prod_type, where="post")
 
 print('Absolute production GWh:')
 print(prod_dict)
@@ -161,7 +220,7 @@ for bidding_area in bidding_areas:
     timestamps = data[area_id][0]
     values = data[area_id][1]
 
-    ax.step(timestamps, values, label=bidding_area)
+    ax.step(timestamps, values, label=bidding_area, where="post")
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Transfer to Finland')
@@ -183,7 +242,12 @@ for tag in curiosity.keys():
     if tag_id == '398':
         values = np.array(values)*-1
 
-    ax.step(timestamps, values, label=tag)
+    ax.step(timestamps, values, label=tag, where="post")
+
+prices = collect_prices(start, end)
+ax_prices = ax_4.twinx()
+ax_prices.step(prices[0], prices[1], c='k', label='Electricity wholesale price', where="post")
+ax_prices.set_ylabel("[eur/MWh]")
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Some separated producers and consumers')
