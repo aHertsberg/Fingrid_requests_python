@@ -14,9 +14,10 @@ import matplotlib.dates as mdates
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-i", "--inertia", help="Boolean for inertia plot")
+parser.add_argument("-i", "--inertia", action="store_true", help="Boolean for inertia plot")
 parser.add_argument("-e", "--end", help="End date, default now")
 parser.add_argument("-d", "--days", help="Set duration in days")
+parser.add_argument("-p", "--prices", action="store_true", help="Boolean for including price chart, can make queries slow (1 day with 15 minute data is ~15 seconds)")
 
 args = parser.parse_args()
 
@@ -81,6 +82,8 @@ def collect_prices(t_start, t_end):
     if t_end > t_15_min_pricing:
         quarter_span = t_end - max(t, t_15_min_pricing)
         quarters = quarter_span.days*24*4 + math.ceil(quarter_span.seconds/900)
+    total_fetches = quarters + hours
+    fetches = 0
     
     dt = timedelta(seconds=3600)
     url = "https://api.porssisahko.net/v2/price.json?date={}"
@@ -90,6 +93,8 @@ def collect_prices(t_start, t_end):
         prices[0].append(t)
         prices[1].append(price)
         t = t + dt
+        fetches += 1
+        if fetches%8 == 0: print(f"Prices fetched: {fetches}/{total_fetches}")
     if quarters > 0:
         dt = timedelta(seconds=900)
         for i in range(quarters):
@@ -98,6 +103,8 @@ def collect_prices(t_start, t_end):
             prices[0].append(t)
             prices[1].append(price)
             t = t + dt
+            fetches += 1
+            if fetches%8 == 0: print(f"Prices fetched: {fetches}/{total_fetches}")
 
     # Ugly hack to make the step plot render the last step.
     # Not as much of a problem with the 3 min data
@@ -110,6 +117,7 @@ def collect_prices(t_start, t_end):
 
     return prices
 
+
 def query_price(url):
     req = urllib.request.Request(url)
     req.get_method = lambda: 'GET'
@@ -121,6 +129,38 @@ def query_price(url):
     response = r.read()
     response = json.loads(response.decode('utf-8'))
     return response["price"]
+
+
+def align_yticks(ticks_a, ticks_b):
+    delta_a = ticks_a[1] - ticks_a[0]
+    delta_b = ticks_b[1] - ticks_b[0]
+    array_a = np.array(ticks_a)
+    array_b = np.array(ticks_b)
+    a_positive = array_a[array_a > 0]
+    b_positive = array_b[array_b > 0]
+    a_negative = array_a[array_a < 0]
+    b_negative = array_b[array_b < 0]
+
+    if len(a_positive) < len(b_positive):
+        for i in range(len(b_positive) - len(a_positive)):
+            ticks_a.append(ticks_a[-1] + delta_a)
+    elif len(a_positive) > len(b_positive):
+        for i in range(len(a_positive) - len(b_positive)):
+            ticks_b.append(ticks_b[-1] + delta_b)
+
+    if len(a_negative) < len(b_negative):
+        for i in range(len(b_negative) - len(a_negative)):
+            ticks_a = [ticks_a[0] - delta_a] + ticks_a
+    elif len(a_negative) > len(b_negative):
+        for i in range(len(a_negative) - len(b_negative)):
+            ticks_b = [ticks_b[0] - delta_b] + ticks_b
+
+    if len(ticks_a) >= 12:
+        zero_index = ticks_a.index(0)
+        ticks_a = ticks_a[zero_index%2::2]
+        ticks_b = ticks_b[zero_index%2::2]
+
+    return (ticks_a, ticks_b)
 
 
 t_now = datetime.utcnow()
@@ -244,10 +284,26 @@ for tag in curiosity.keys():
 
     ax.step(timestamps, values, label=tag, where="post")
 
-prices = collect_prices(start, end)
-ax_prices = ax_4.twinx()
-ax_prices.step(prices[0], prices[1], c='k', label='Electricity wholesale price', where="post")
-ax_prices.set_ylabel("[eur/MWh]")
+
+if args.prices:
+    prices = collect_prices(start, end)
+    ax_prices = ax_4.twinx()
+    ax_prices.step(prices[0], prices[1], c='k', label='Electricity wholesale price', where="post")
+    ax_prices.set_ylabel("[eur/MWh]")
+
+    # Tick alignment
+    ylim = ax.get_ylim()
+    ax.set_ylim([min(0, min(ylim)), max(0, max(ylim))])
+    power_ticks = ax.get_yticks()
+
+    ylim = ax_prices.get_ylim()
+    ax_prices.set_ylim([min(0, min(ylim)), max(0, max(ylim))])
+    price_ticks = ax_prices.get_yticks()
+
+    power_ticks, price_ticks = align_yticks(list(power_ticks), list(price_ticks))
+    ax.set_yticks(power_ticks)
+    ax_prices.set_yticks(price_ticks)
+
 
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Some separated producers and consumers')
@@ -257,6 +313,7 @@ ax.grid()
 ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 fig.subplots_adjust(hspace=.5)
+
 plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 
 if args.inertia:
