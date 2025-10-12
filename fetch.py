@@ -81,6 +81,7 @@ def collect_prices(t_start, t_end):
     total_fetches = len(missing_indices)
     fetches = 0
     
+    if len(missing_indices) > 0: print(f"Querying missing indices, starting with t={missing_indices[0]}")
     url = "https://api.porssisahko.net/v2/price.json?date={}"
     for index in missing_indices:
         date_string = datetime.strftime(index, "%Y-%m-%dT%H:%M:00.000Z")
@@ -176,7 +177,7 @@ def align_yticks(ticks_a, ticks_b):
     return (ticks_a, ticks_b)
 
 
-t_now = datetime.utcnow()
+t_now = pd.Timestamp("now")
 if args.end:
     end = datetime.strptime(args.end, '%Y-%m-%d')
 else:
@@ -186,17 +187,18 @@ if args.days:
     start = end - timedelta(days=int(args.days))
 else:
     start = end - timedelta(days=3)
+    start = start.floor(freq='d')
 
 start_string = datetime.strftime(start, '%Y-%m-%dT%H:%M')
 end_string = datetime.strftime(end, '%Y-%m-%dT%H:%M')
 
 data = query_multiple_tags(production, start_string, end_string)
 
-fig = plt.figure('production', dpi=100, figsize=(16,24))
+fig = plt.figure('production', dpi=100, figsize=(16,30))
 prod_dict = {}
 total_power = 0
-ax_1 = plt.subplot(411)
-ax_2 = plt.subplot(412)
+ax_1 = plt.subplot(511)
+ax_2 = plt.subplot(512)
 
 for prod_type in production_types:
     prod_id = production[prod_type]
@@ -249,7 +251,7 @@ ax = ax_1
 ax.set_facecolor('xkcd:powder blue')
 ax.set_title('Total power consumption and production in Finland')
 ax.set_xlim((start, min(end, datetime.utcnow())))
-ax.legend(loc='upper left', bbox_to_anchor=(.025, 1.12), ncol=2, fancybox=True)
+ax.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=2, fancybox=True)
 ax.grid()
 ax.set_ylabel("[MW]")
 
@@ -258,13 +260,13 @@ ax.set_facecolor('xkcd:powder blue')
 ax.set_xlim((start, min(end, datetime.utcnow())))
 bottom, top = ax.get_ylim()
 ax.set_ylim(bottom, top+500)
-ax.legend(loc='upper left', bbox_to_anchor=(.025, 1.15), ncol=3, fancybox=True)
+ax.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=3, fancybox=True)
 ax.grid()
 ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
 
-ax_3 = plt.subplot(413)
+ax_3 = plt.subplot(513)
 ax = ax_3
 time.sleep(2) # Might otherwise hit the rate limit from the previous queries
 data = query_multiple_tags(transfer, start_string, end_string)
@@ -278,23 +280,20 @@ for bidding_area in bidding_areas:
 ax.set_facecolor('xkcd:powder blue')
 plt.title('Transfer to Finland')
 ax.set_xlim((start, min(end, datetime.utcnow())))
-ax.legend(loc='upper left', bbox_to_anchor=(.025, 1.20), ncol=3, fancybox=True)
+ax.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=3, fancybox=True)
 ax.grid()
 ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
-ax_4 = plt.subplot(414)
+ax_4 = plt.subplot(514)
 ax = ax_4
 time.sleep(2)
-curiosity = cfg.curiosity
-data = query_multiple_tags(curiosity, start_string, end_string)
-for tag in curiosity.keys():
-    tag_id = curiosity[tag]
+dh = cfg.district_heating
+data = query_multiple_tags(dh, start_string, end_string)
+for tag in dh.keys():
+    tag_id = dh[tag]
     timestamps = data[tag_id][0]
     values = data[tag_id][1]
-    if tag_id == '398':
-        values = np.array(values)*-1
-
     ax.step(timestamps, values, label=tag, where="post")
 
 
@@ -319,17 +318,39 @@ if args.prices:
 
     lines, labels = ax.get_legend_handles_labels()
     lines2, labels2 = ax_prices.get_legend_handles_labels()
-    ax.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(.025, 1.25), ncol=2, fancybox=True)
+    ax.legend(lines + lines2, labels + labels2, loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=1, fancybox=True)
 
-else: ax.legend(loc='upper left', bbox_to_anchor=(.025, 1.25), ncol=1, fancybox=True)
-
+else: ax.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=1, fancybox=True)
 
 ax.set_facecolor('xkcd:powder blue')
-plt.title('Some separated producers and consumers')
+plt.title('District heating boilers and electricity price')
 ax.set_xlim((start, min(end, datetime.utcnow())))
 ax.grid()
 ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
+fig.subplots_adjust(hspace=.5)
+
+
+ax_5 = plt.subplot(515)
+time.sleep(2)
+storage = cfg.storage
+data = query_multiple_tags(storage, start_string, end_string)
+
+for tag in storage.keys():
+    tag_id = storage[tag]
+    timestamps = data[tag_id][0]
+    values = data[tag_id][1]
+    if tag_id == '398':
+        values = np.array(values)*-1
+    ax_5.step(timestamps, values, label=tag, where="post")
+
+ax_5.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=1, fancybox=True)
+ax_5.set_facecolor('xkcd:powder blue')
+plt.title('Storage load')
+ax_5.set_xlim((start, min(end, datetime.utcnow())))
+ax_5.grid()
+ax_5.set_ylabel("[MW]")
+ax_5.fmt_xdata = mdates.DateFormatter('%H:%M')
 fig.subplots_adjust(hspace=.5)
 
 plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
