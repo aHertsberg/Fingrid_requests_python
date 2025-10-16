@@ -87,7 +87,7 @@ def collect_prices(t_start, t_end):
         date_string = datetime.strftime(index, "%Y-%m-%dT%H:%M:00.000Z")
         price = query_price(url.format(date_string))
         # The prices returned include VAT and are in c/kWh
-        price = price/1.255*10
+        price = round(price/1.255*10, 2)
         prices.loc[index] = [price,]
         fetches += 1
         if fetches%8 == 0: print(f"Prices fetched: {fetches}/{total_fetches}")
@@ -109,11 +109,11 @@ def generate_index(start, end):
     quarters = 0
     t = start
     if t < t_15_min_pricing:
-        t = t - timedelta(t.minute*60 + t.second)
+        t = t - timedelta(seconds=t.minute*60 + t.second)
         hour_span = min(end, t_15_min_pricing) - t
         hours = hour_span.days*24 + math.ceil(hour_span.seconds/3600)
     else:
-        t = t - timedelta(t.minute%15*60 + t.second)
+        t = t - timedelta(seconds=t.minute%15*60 + t.second)
     if end > t_15_min_pricing:
         quarter_span = end - max(t, t_15_min_pricing)
         quarters = quarter_span.days*24*4 + math.ceil(quarter_span.seconds/900)
@@ -179,12 +179,13 @@ def align_yticks(ticks_a, ticks_b):
 
 t_now = pd.Timestamp("now")
 if args.end:
-    end = datetime.strptime(args.end, '%Y-%m-%d')
+    end = pd.Timestamp(args.end)
 else:
     end = t_now
 
 if args.days:
     start = end - timedelta(days=int(args.days))
+    start = start.floor(freq='d')
 else:
     start = end - timedelta(days=3)
     start = start.floor(freq='d')
