@@ -279,7 +279,7 @@ for bidding_area in bidding_areas:
     ax.step(timestamps, values, label=bidding_area, where="post")
 
 ax.set_facecolor('xkcd:powder blue')
-plt.title('Transfer to Finland')
+plt.title('Transfer from Finland')
 ax.set_xlim((start, min(end, datetime.utcnow())))
 ax.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=3, fancybox=True)
 ax.grid()
