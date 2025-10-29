@@ -16,3 +16,5 @@ district_heating = {'Electric district heating boilers': '371'}
 
 storage = {'Electricity storage: discharging':'398', \
              'Electricity storage: charging':'399'}
+
+afrr = {'Marginal price down':'345', 'Marginal price up':'346'}

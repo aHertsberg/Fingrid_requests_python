@@ -15,9 +15,10 @@ import pandas as pd
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-i", "--inertia", action="store_true", help="Boolean for inertia plot")
+parser.add_argument("--volatiles", action="store_true", help="Boolean for plotting rapidly changing data, such as electricity storage, separately")
 parser.add_argument("-e", "--end", help="End date, default now")
 parser.add_argument("-d", "--days", help="Set duration in days, default 3")
+parser.add_argument("--hours", help="Finer granularity duration added on top of days")
 parser.add_argument("-p", "--prices", action="store_true", help="Boolean for including price chart")
 
 args = parser.parse_args()
@@ -46,7 +47,7 @@ def query_multiple_tags(tag_dict, start, end, page=1, last_page=None):
     r = urllib.request.urlopen(req)
     response_code = r.getcode()
     if response_code != 200:
-        print(f"Fetching \"{base_url}\" returned status code {response_code}")
+        print(f"Fetching \"{request_url}\" returned status code {response_code}")
         return
     response = r.read()
     response = json.loads(response.decode('utf-8'))
@@ -190,16 +191,19 @@ else:
     start = end - timedelta(days=3)
     start = start.floor(freq='d')
 
+if args.hours:
+    start = start + timedelta(seconds=int(args.hours)*3600)
+
 start_string = datetime.strftime(start, '%Y-%m-%dT%H:%M')
 end_string = datetime.strftime(end, '%Y-%m-%dT%H:%M')
 
 data = query_multiple_tags(production, start_string, end_string)
 
-fig = plt.figure('production', dpi=100, figsize=(16,30))
+fig = plt.figure('production', dpi=100, figsize=(16,24))
 prod_dict = {}
 total_power = 0
-ax_1 = plt.subplot(511)
-ax_2 = plt.subplot(512)
+ax_1 = plt.subplot(411)
+ax_2 = plt.subplot(412)
 
 for prod_type in production_types:
     prod_id = production[prod_type]
@@ -267,7 +271,7 @@ ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
 
-ax_3 = plt.subplot(513)
+ax_3 = plt.subplot(413)
 ax = ax_3
 time.sleep(2) # Might otherwise hit the rate limit from the previous queries
 data = query_multiple_tags(transfer, start_string, end_string)
@@ -286,7 +290,7 @@ ax.grid()
 ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 
-ax_4 = plt.subplot(514)
+ax_4 = plt.subplot(414)
 ax = ax_4
 time.sleep(2)
 dh = cfg.district_heating
@@ -331,57 +335,97 @@ ax.set_ylabel("[MW]")
 ax.fmt_xdata = mdates.DateFormatter('%H:%M')
 fig.subplots_adjust(hspace=.5)
 
-
-ax_5 = plt.subplot(515)
-time.sleep(2)
-storage = cfg.storage
-data = query_multiple_tags(storage, start_string, end_string)
-
-for tag in storage.keys():
-    tag_id = storage[tag]
-    timestamps = data[tag_id][0]
-    values = data[tag_id][1]
-    if tag_id == '398':
-        values = np.array(values)*-1
-    ax_5.step(timestamps, values, label=tag, where="post")
-
-ax_5.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=1, fancybox=True)
-ax_5.set_facecolor('xkcd:powder blue')
-plt.title('Storage load')
-ax_5.set_xlim((start, min(end, datetime.utcnow())))
-ax_5.grid()
-ax_5.set_ylabel("[MW]")
-ax_5.fmt_xdata = mdates.DateFormatter('%H:%M')
-fig.subplots_adjust(hspace=.5)
-
 plt.savefig('Production_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 
-if args.inertia:
+
+fig = plt.figure('frequency', dpi=100, figsize=(16,18))
+if args.volatiles:
+
+    ax_1 = plt.subplot(313)
+    time.sleep(2)
+    storage = cfg.storage
+    data = query_multiple_tags(storage, start_string, end_string)
+
+    for tag in storage.keys():
+        tag_id = storage[tag]
+        timestamps = data[tag_id][0]
+        values = data[tag_id][1]
+        if tag_id == '398':
+            values = np.array(values)*-1
+        ax_1.step(timestamps, values, label=tag, where="post")
+
+    ax_1.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=1, fancybox=True)
+    ax_1.set_facecolor('xkcd:powder blue')
+    plt.title('Storage loads in Finland')
+    ax_1.set_xlim((start, min(end, datetime.utcnow())))
+    ax_1.grid()
+    ax_1.set_ylabel("[MW]")
+    ax_1.fmt_xdata = mdates.DateFormatter('%H:%M')
+    fig.subplots_adjust(hspace=.5)
+
+
+    ax_2 = plt.subplot(311)
+    time.sleep(2)
     inertia = cfg.inertia
-    inertial_params = list(inertia.keys())
-    plt.figure('inertia', dpi=100, figsize=(16,8))
-    for param in inertial_params:
-        values = []
-        timestamps = []
-        # todo switch to urllib
-        r = requests.get(url.format(inertia[param]), headers=headers, params=payload)
+    data = query_multiple_tags(inertia, start_string, end_string)
 
-        for e in r.json():
-            values.append(float(e['value']))
-            timestamps.append(datetime.strptime(e['start_time'], '%Y-%m-%dT%H:%M:%S+0000'))
-        if param == 'Grid inertia':
-            values = np.array(values)
-            # conversion from GWs to MWh
-            values = values/3.6
-            param += ' [MWh]'
+    for tag in inertia.keys():
+        tag_id = inertia[tag]
+        timestamps = data[tag_id][0]
+        if tag_id == '260':
+            values = np.array(data[tag_id][1])/3.6 # conversion from GWs to MWh
+            ax_2.step(timestamps, values, label=tag, where="post")
         else:
-            param += ' [Hz]'
-        plt.step(timestamps, values, label=param)
+            values = data[tag_id][1]
+            ax_freq = ax_2.twinx()
+            ax_freq.step(timestamps, values, label=tag, c='k', where="post")
+            ax_freq.set_ylabel("[Hz]")
 
-    plt.legend(fancybox=True)
-    plt.grid(b=True)
-    plt.fmt_xdata = mdates.DateFormatter('%H:%M')
-    plt.title('Inertial information of the Nordic grid')
-    plt.savefig('Inertia_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
+            # Tick alignment
+            ylim = ax_2.get_ylim()
+            inertia_ticks = ax_2.get_yticks()
+
+            ylim = ax_freq.get_ylim()
+            freq_ticks = ax_freq.get_yticks()
+
+            inertia_ticks, freq_ticks = align_yticks(list(inertia_ticks), list(freq_ticks))
+            ax_2.set_yticks(inertia_ticks)
+            ax_freq.set_yticks(freq_ticks)
+
+            lines, labels = ax_2.get_legend_handles_labels()
+            lines2, labels2 = ax_freq.get_legend_handles_labels()
+            ax_2.legend(lines + lines2, labels + labels2, loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=2, fancybox=True)
+
+
+
+    ax_2.set_facecolor('xkcd:powder blue')
+    plt.title('Inertia and frequency information of the Nordic grid')
+    ax_2.set_xlim((start, min(end, datetime.utcnow())))
+    ax_2.grid()
+    ax_2.set_ylabel("[MWh]")
+    ax_2.fmt_xdata = mdates.DateFormatter('%H:%M')
+    fig.subplots_adjust(hspace=.5)
+
+    ax_3 = plt.subplot(312)
+    time.sleep(2)
+    afrr = cfg.afrr
+    data = query_multiple_tags(afrr, start_string, end_string)
+
+    for tag in afrr.keys():
+        tag_id = afrr[tag]
+        timestamps = data[tag_id][0]
+        values = data[tag_id][1]
+        ax_3.step(timestamps, values, label=tag, where="post")
+
+    ax_3.legend(loc='lower left', bbox_to_anchor=(.025, 1.0), ncol=2, fancybox=True)
+    ax_3.set_facecolor('xkcd:powder blue')
+    plt.title('Storage load')
+    ax_3.set_xlim((start, min(end, datetime.utcnow())))
+    ax_3.grid()
+    ax_3.set_ylabel("[€/MWh]")
+    plt.title('aFRR marginal prices')
+    ax_3.fmt_xdata = mdates.DateFormatter('%H:%M')
+    fig.subplots_adjust(hspace=.5)
+    plt.savefig('Frequency_{}.png'.format(datetime.strftime(end, '%Y%m%d')))
 
 
