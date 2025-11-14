@@ -100,6 +100,9 @@ def collect_prices(t_start, t_end):
     dt = last - prices.index[-2]
     prices.loc[last + dt] = prices.loc[last]
 
+    prices = prices[prices.index >= t_start]
+    prices = prices[prices.index <= t_end]
+
     return prices
 
 def generate_index(start, end):
